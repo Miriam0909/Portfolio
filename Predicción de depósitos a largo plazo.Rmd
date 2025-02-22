@@ -1,0 +1,1072 @@
+---
+title: "arti"
+author: "YPVV"
+date: "2024-06-26"
+output: word_document
+---
+
+# Librerías
+
+```{r}
+library(nnet)
+library(biotools)
+library(MASS)
+library(klaR)
+library(caret)
+library(DT)
+library(ROCR)
+library(class)
+library(kknn)
+library(e1071)
+library(adabag)
+library(randomForest)
+library(rpart)
+library(rattle)
+library(modeest)
+library(plotly)
+library(cluster)
+library(corrgram)
+library(psych)
+library(AMR)
+library(dplyr)
+```
+
+
+Cargar la base:
+
+```{r}
+library(readr)
+base <- read_csv("bank.csv")
+
+```
+
+
+```{r}
+base=as.data.frame(base)
+```
+
+
+# Preparación de la base
+
+
+```{r}
+
+base$deposit <- ifelse(base$deposit == "no", 0, 1)
+
+table(base$deposit)
+```
+
+
+```{r}
+base$deposit = as.factor(base$deposit)
+base$job = as.factor(base$job)
+base$marital = as.factor(base$marital)
+base$education = as.factor(base$education)
+base$default = as.factor(base$default)
+base$housing = as.factor(base$housing)
+base$loan = as.factor(base$loan)
+base$contact = as.factor(base$contact)
+base$poutcome = as.factor(base$poutcome)
+
+```
+
+Eliminar variables
+
+```{r}
+library(dplyr)
+base <- base %>%
+  select(-day, -month, -pdays)
+
+```
+
+```{r}
+str(base)
+```
+
+# Hacer submuestreo
+
+```{r}
+# Submuestreo de la base de datos
+RNGkind(sample.kind = "Rounding")
+set.seed(10)
+n_total = nrow(base)
+prop_submuestreo = 0.6  # Proporción de submuestreo (ajusta según sea necesario)
+n_submuestreo = round(prop_submuestreo * n_total)
+indices_submuestreo = sample(1:n_total, n_submuestreo)
+base_submuestreada = base[indices_submuestreo,]
+```
+
+# Descriptivos
+
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(forcats)
+
+# Contar las frecuencias de cada categoría
+frecuencia_categoria <- base %>%
+  group_by(deposit) %>%
+  summarise(Frecuencia = n()) %>%
+  arrange(desc(Frecuencia))
+
+# Mostrar la tabla de frecuencias
+print(frecuencia_categoria)
+
+# Visualización con ggplot2 - Barras horizontales ordenadas
+ggplot(frecuencia_categoria, aes(x = fct_reorder(deposit, Frecuencia), y = Frecuencia)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(title = "Frecuencia de cada Categoría",
+       x = "Categoría",
+       y = "Frecuencia") +
+  theme_minimal()
+
+```
+```{r}
+empleo <- base_submuestreada %>%
+  group_by(job, deposit) %>%
+  summarise(Frecuencia = n()) %>%
+  arrange(job, desc(Frecuencia))
+
+estado_civil = base_submuestreada %>%
+  group_by(marital, deposit) %>%
+  summarise(es = n()) %>%
+  arrange(marital, desc(es))
+
+educacion = base_submuestreada %>%
+  group_by(education, deposit) %>%
+  summarise(ed = n()) %>%
+  arrange(education, desc(ed))
+
+contacto= base_submuestreada %>%
+  group_by(contact, deposit) %>%
+  summarise(con = n()) %>%
+  arrange(contact, desc(con))
+
+put = base_submuestreada %>%
+  group_by(poutcome, deposit) %>%
+  summarise(p = n()) %>%
+  arrange(poutcome, desc(p))
+```
+
+
+```{r}
+colores <- c('0' = '#66CDAA', '1' = '#458B74')
+# Visualización con ggplot2 - Gráfico de barras apiladas
+g1 = ggplot(empleo, aes(x = fct_reorder(job, Frecuencia), y = Frecuencia, fill = deposit)) +
+  geom_bar(stat = "identity", position = "stack") +
+  coord_flip() +
+   scale_fill_manual(values = colores, labels = c("No", "Sí")) +
+  guides(fill = guide_legend(title = "Depósito"))+
+  labs(title = "Distribución de personas según empleo por deposito",
+       x = "Empleo",
+       y = "Número de personas") +
+  theme_minimal() 
+g1
+```
+
+
+```{r}
+colores <- c('0' = '#CD5555', '1' = '#8B3A3A')
+# Visualización con ggplot2 - Gráfico de barras apiladas
+g2 = ggplot(estado_civil, aes(x = fct_reorder(marital, es), y = es, fill = deposit)) +
+  geom_bar(stat = "identity", position = "stack") +
+  coord_flip() +
+   scale_fill_manual(values = colores, labels = c("No", "Sí")) +
+  guides(fill = guide_legend(title = "Depósito"))+
+  labs(title = "Distribución de personas según estado cívil por deposito",
+       x = "Estado cívil",
+       y = "Número de personas") +
+  theme_minimal()
+
+colores <- c('0' = '#EE9A00', '1' = '#8B5A00')
+# Visualización con ggplot2 - Gráfico de barras apiladas
+g3 = ggplot(educacion, aes(x = fct_reorder(education, ed), y = ed, fill = deposit)) +
+  geom_bar(stat = "identity", position = "stack") +
+  coord_flip() +
+   scale_fill_manual(values = colores, labels = c("No", "Sí")) +
+  guides(fill = guide_legend(title = "Depósito"))+
+  labs(title = "Distribución de personas según educación por deposito",
+       x = "Nivel educativo",
+       y = "Número de personas") +
+  theme_minimal()
+
+colores <- c('0' = '#FFE7BA', '1' = '#8B5A2B')
+# Visualización con ggplot2 - Gráfico de barras apiladas
+g4 = ggplot(contacto, aes(x = fct_reorder(contact, con), y = con, fill = deposit)) +
+  geom_bar(stat = "identity", position = "stack") +
+  coord_flip() +
+   scale_fill_manual(values = colores, labels = c("No", "Sí")) +
+  guides(fill = guide_legend(title = "Depósito"))+
+  labs(title = "Distribución de personas según canal de contacto por deposito",
+       x = "Medio de contacto",
+       y = "Número de personas") +
+  theme_minimal()
+
+colores <- c('0' = '#4F94CD', '1' = '#4682B4')
+# Visualización con ggplot2 - Gráfico de barras apiladas
+g5 = ggplot(put, aes(x = fct_reorder(poutcome, p), y = p, fill = deposit)) +
+  geom_bar(stat = "identity", position = "stack") +
+  coord_flip() +
+   scale_fill_manual(values = colores, labels = c("No", "Sí")) +
+  guides(fill = guide_legend(title = "Depósito"))+
+  labs(title = "Distribución de personas según empleo poutcome por deposito",
+       x = "Categoría",
+       y = "Número de personas") +
+  theme_minimal() 
+
+
+```
+
+
+```{r}
+library(gridExtra)
+ grid.arrange(g1, g2, nrow = 2)
+ grid.arrange(g3, g4, g5, nrow = 3)
+
+
+```
+
+
+
+```{r}
+ h1 = ggplot(base_submuestreada, aes(x = age)) +
+  geom_histogram(fill = "steelblue", color = "white") +
+  labs(title = "Distribución de las edades",
+       x = "Edad",
+       y = "Frecuencia") +
+  theme_minimal()
+ 
+h2 = ggplot(base_submuestreada, aes(x = balance)) +
+  geom_histogram(fill = "steelblue", color = "white") +
+  labs(title = "Distribución de los balances",
+       x = "Balance",
+       y = "Frecuencia") +
+  theme_minimal()
+
+h3= ggplot(base_submuestreada, aes(x = duration)) +
+  geom_histogram(fill = "steelblue", color = "white", bins = 6) +
+  labs(title = "Distribución de duración ",
+       x = "Duración",
+       y = "Frecuencia") +
+  theme_minimal()
+
+h4 = ggplot(base_submuestreada, aes(x = campaign)) +
+  geom_histogram(fill = "steelblue", color = "white", bins = 6) +
+  labs(title = "Distribución de campaign",
+       x = "
+       campaign",
+       y = "Frecuencia") +
+  theme_minimal()
+
+h5 = ggplot(base_submuestreada, aes(x = previous)) +
+  geom_histogram(fill = "steelblue", color = "white", bins = 6) +
+  labs(title = "Distribución de las previous",
+       x = "previous",
+       y = "Frecuencia") +
+  theme_minimal()
+```
+
+
+```{r}
+grid.arrange(h1, h2, h3, h4, h5, nrow = 3, ncol = 2)
+```
+
+
+```{r}
+summary(base$balance)
+```
+
+
+# Funciones de validación cruzada 
+Función de Curva ROC
+```{r}
+curvaROC = function(pred,y, grafico = F) { 
+  predict = prediction(pred,y) 
+  auc = attributes(performance(predict,"auc"))$y.values[[1]]*100 
+  des = performance(predict,"tpr","fpr")
+  p = NULL
+  if(grafico){
+    FP = attributes(des)$x.values[[1]]*100
+    PP = attributes(des)$y.values[[1]]*100
+    p <- plot_ly(x = FP, y = FP, name = 'Línea No Discrimina', 
+                 type = 'scatter', mode = 'lines',
+                 line = list(color = 'rgba(0, 0, 0, 1)', 
+                             width = 4, dash = 'dot'),
+                 fill = 'tozeroy',  fillcolor = 'rgba(0, 0, 0, 0)') %>% 
+      add_trace(y = PP, name = paste('Curva ROC (AUC = ', round(auc,3),')', sep =""), 
+                line = list(color = 'rgba(0, 0, 255, 1)', width = 4, 
+                dash = 'line'),  fillcolor = 'rgba(0, 0, 255, 0.2)')%>%
+      layout(title = "Curva ROC",
+             xaxis = list(title = "<b>Falsos Positivos (%)<b>"),
+             yaxis = list (title = "<b>Precisión Positiva (%)<b>"))
+  }
+  return(list(auc = auc,grafico = p))
+}
+```
+
+Función del KS
+
+```{r}
+KS = function(pred,y) {
+  predictions = prediction(pred,y) 
+  des = performance(predictions,"tpr","fpr")    
+  ks = max(attributes(des)$y.values[[1]]*100 - 
+           attributes(des)$x.values[[1]]*100)
+  return(ks)
+}
+```
+
+Función para calcular los indicadores de desempeño
+
+```{r}
+eval=function(y,pred){
+  confu=table(y,pred)
+  e=1-sum(diag(confu))/sum(confu)
+  falsos=1-diag(confu)/apply(confu, 1, sum)
+  error=c(e, falsos)*100
+  auc=curvaROC(pred,y)$auc
+  KS=KS(pred,y)
+  indicadores=c(error,auc,KS)
+  names(indicadores)=c("e","FP", "FN", "AUC", "KS")
+  return(list(Matriz=confu, indicadores=indicadores))
+}
+```
+
+
+# Creación de pliegues
+```{r}
+cortes=createFolds(1:nrow(base_submuestreada), k = 10)
+```
+
+# Logistica
+
+modcompleto: 
+```{r}
+resl1 = matrix(nrow = 10, ncol = 5)
+colnames(resl1) = c("e", "FN", "FP", "AUC", "KS")
+
+for (i in 1:10) {
+  train1 = base_submuestreada[-cortes[[i]], ]
+  test1 = base_submuestreada[cortes[[i]], ]
+  mod1 = glm(deposit ~ ., family = binomial, data = train1)
+  predichos1 = predict(mod1, newdata = test1, type = "response") > 0.5
+  predichos1 = as.numeric(predichos1)
+  fm1 = eval(test1$deposit, predichos1)
+  resl1[i, ] = fm1$indicadores 
+}
+round(resl1,1)
+```
+
+Se aplica el drop1 para seleccionar variables
+
+```{r}
+drop1(mod1,test="LRT")
+```
+
+mod -previous: 
+```{r}
+resla = matrix(nrow = 10, ncol = 5)
+colnames(resla) = c("e", "FN", "FP", "AUC", "KS")
+
+for (i in 1:10) {
+  train1 = base_submuestreada[-cortes[[i]], ]
+  test1 = base_submuestreada[cortes[[i]], ]
+  mod1a = update(mod1, .~. -age,data=train1, family=binomial)
+  predichos1a = predict(mod1a, newdata = test1, type = "response") > 0.5
+  predichos1a = as.numeric(predichos1a)
+  fm1a = eval(test1$deposit, predichos1a)
+  resla[i, ] = fm1a$indicadores 
+}
+round(resla,1)
+```
+
+```{r}
+drop1(mod1a, test="LRT")
+```
+
+mod -previous: 
+```{r}
+reslb = matrix(nrow = 10, ncol = 5)
+colnames(reslb) = c("e", "FN", "FP", "AUC", "KS")
+
+for (i in 1:10) {
+  train1 = base_submuestreada[-cortes[[i]], ]
+  test1 = base_submuestreada[cortes[[i]], ]
+  mod1b = update(mod1a, .~. -previous,data=train1, family=binomial)
+  predichos1b = predict(mod1b, newdata = test1, type = "response") > 0.5
+  predichos1b = as.numeric(predichos1b)
+  fm1b = eval(test1$deposit, predichos1b)
+  reslb[i, ] = fm1b$indicadores 
+}
+round(reslb,1)
+```
+```{r}
+drop1(mod1b, test="LRT")
+```
+
+mod -default: 
+```{r}
+reslc = matrix(nrow = 10, ncol = 5)
+colnames(reslc) = c("e", "FN", "FP", "AUC", "KS")
+
+for (i in 1:10) {
+  train1 = base_submuestreada[-cortes[[i]], ]
+  test1 = base_submuestreada[cortes[[i]], ]
+  mod1c = update(mod1b, .~. -default,data=train1, family=binomial)
+  predichos1c = predict(mod1c, newdata = test1, type = "response") > 0.5
+  predichos1c = as.numeric(predichos1c)
+  fm1c = eval(test1$deposit, predichos1c)
+  reslc[i, ] = fm1c$indicadores 
+}
+round(reslc,1)
+```
+```{r}
+drop1(mod1c, test="LRT")
+```
+
+Ver las medias de todos:
+
+```{r}
+l1 = apply(resl1 , 2, mean)
+l1
+```
+
+```{r}
+la = apply(resla , 2, mean)
+la
+```
+
+```{r}
+lb = apply(reslb , 2, mean)
+lb
+```
+```{r}
+lc = apply(reslc , 2, mean)
+lc
+```
+
+*El modelo final es:
+
+# Árboles de decisiones
+
+Minsplit
+```{r}
+n = nrow(base_submuestreada)
+round(0.01*n)  #el 1 % del total 
+```
+
+Minbucket
+```{r}
+0.005*n     
+```
+
+
+Se empieza probando con max depth por defecto y con cp=0.0005
+```{r}
+resab = matrix(nrow = 10, ncol = 5)
+colnames(resab) = c("e", "FN", "FP", "AUC", "KS")
+
+for (i in 1:10) {
+  train1 = base_submuestreada[-cortes[[i]], ]
+  test1 = base_submuestreada[cortes[[i]], ]
+  modad1 = rpart(deposit ~ ., method="class", data=train1, minsplit=67, minbucket=34, cp=0.0005)
+  predad1 =predict(modad1,newdata = test1, type="class")
+  predicad1 = as.numeric(predad1)
+  fmab = eval(test1$deposit, predicad1)
+  resab[i, ] = fmab$indicadores 
+}
+round(resab,1)
+```
+
+
+Con cp=0.005
+```{r}
+resab1 = matrix(nrow = 10, ncol = 5)
+colnames(resab1) = c("e", "FN", "FP", "AUC", "KS")
+
+for (i in 1:10) {
+  train1 = base_submuestreada[-cortes[[i]], ]
+  test1 = base_submuestreada[cortes[[i]], ]
+  modad2 = rpart(deposit ~ ., method="class", data=train1, minsplit=67, minbucket=34, cp=0.005)
+  predad2 =predict(modad2,newdata = test1, type="class")
+  predicad2 = as.numeric(predad2)
+  fmab2 = eval(test1$deposit, predicad2)
+  resab1[i, ] = fmab2$indicadores 
+}
+round(resab1,1)
+```
+
+Con cp=0.05
+
+```{r}
+resab2 = matrix(nrow = 10, ncol = 5)
+colnames(resab2) = c("e", "FN", "FP", "AUC", "KS")
+
+for (i in 1:10) {
+  train1 = base_submuestreada[-cortes[[i]], ]
+  test1 = base_submuestreada[cortes[[i]], ]
+  modad3 = rpart(deposit ~ ., method="class", data=train1, minsplit=67, minbucket=34, cp=0.05)
+  predad3 =predict(modad3,newdata = test1, type="class")
+  predicad3 = as.numeric(predad3)
+  fmab3 = eval(test1$deposit, predicad3)
+  resab2[i, ] = fmab3$indicadores 
+}
+round(resab2,1)
+```
+Ver las medias de todos:
+
+```{r}
+lab1 = apply(resab , 2, mean); lab1
+```
+
+```{r}
+lab2 = apply(resab1 , 2, mean); lab2
+```
+
+```{r}
+lab3 = apply(resab2 , 2, mean); lab3
+```
+MEJOR CP=0.0005
+El modelo 1 es claramente el mejor en términos generales, ya que tiene el menor error, el menor número de falsos positivos, y las mayores métricas de AUC y KS.
+
+Probando con maxdepth y cp=0.05
+
+
+Ahora se prueba con maxdepth=1
+```{r}
+resab3 = matrix(nrow = 10, ncol = 5)
+colnames(resab3) = c("e", "FN", "FP", "AUC", "KS")
+
+for (i in 1:10) {
+  train1 = base_submuestreada[-cortes[[i]], ]
+  test1 = base_submuestreada[cortes[[i]], ]
+  modad4 = rpart(deposit ~ ., method="class", data=train1, minsplit=67, minbucket=34,  maxdepth=1, cp=0.0005)
+  predad4 =predict(modad4,newdata = test1, type="class")
+  predicad4 = as.numeric(predad4)
+  fmab4 = eval(test1$deposit, predicad4)
+  resab3[i, ] = fmab4$indicadores 
+}
+round(resab3,1)
+```
+
+
+
+Con maxdepth=3
+```{r}
+resab4 = matrix(nrow = 10, ncol = 5)
+colnames(resab4) = c("e", "FN", "FP", "AUC", "KS")
+
+for (i in 1:10) {
+  train1 = base_submuestreada[-cortes[[i]], ]
+  test1 = base_submuestreada[cortes[[i]], ]
+  modad5 = rpart(deposit ~ ., method="class", data=train1, minsplit=67, minbucket=34,  maxdepth=3, cp=0.0005)
+  predad5 =predict(modad5,newdata = test1, type="class")
+  predicad5 = as.numeric(predad5)
+  fmab5 = eval(test1$deposit, predicad5)
+  resab4[i, ] = fmab5$indicadores 
+}
+round(resab4,1)
+```
+
+
+
+Con maxdepth=5
+```{r}
+resab5 = matrix(nrow = 10, ncol = 5)
+colnames(resab5) = c("e", "FN", "FP", "AUC", "KS")
+
+for (i in 1:10) {
+  train1 = base_submuestreada[-cortes[[i]], ]
+  test1 = base_submuestreada[cortes[[i]], ]
+  modad5 = rpart(deposit ~ ., method="class", data=train1, minsplit=67, minbucket=34,  maxdepth=5, cp=0.0005)
+  predad5 =predict(modad5,newdata = test1, type="class")
+  predicad5 = as.numeric(predad5)
+  fmab5 = eval(test1$deposit, predicad5)
+  resab5[i, ] = fmab5$indicadores 
+}
+round(resab5,1)
+```
+
+
+
+Con maxdepth=7
+```{r}
+resab6 = matrix(nrow = 10, ncol = 5)
+colnames(resab6) = c("e", "FN", "FP", "AUC", "KS")
+
+for (i in 1:10) {
+  train1 = base_submuestreada[-cortes[[i]], ]
+  test1 = base_submuestreada[cortes[[i]], ]
+  modad6 = rpart(deposit ~ ., method="class", data=train1, minsplit=67, minbucket=34,  maxdepth=7, cp=0.0005)
+  predad6 =predict(modad5,newdata = test1, type="class")
+  predicad6 = as.numeric(predad6)
+  fmab6 = eval(test1$deposit, predicad6)
+  resab6[i, ] = fmab6$indicadores 
+}
+round(resab6,1)
+```
+
+
+
+Con maxdepth=9
+```{r}
+resab7 = matrix(nrow = 10, ncol = 5)
+colnames(resab7) = c("e", "FN", "FP", "AUC", "KS")
+
+for (i in 1:10) {
+  train1 = base_submuestreada[-cortes[[i]], ]
+  test1 = base_submuestreada[cortes[[i]], ]
+  modad7 = rpart(deposit ~ ., method="class", data=train1, minsplit=67, minbucket=34,  maxdepth=9, cp=0.0005)
+  predad7 =predict(modad7,newdata = test1, type="class")
+  predicad7 = as.numeric(predad7)
+  fmab7 = eval(test1$deposit, predicad7)
+  resab7[i, ] = fmab7$indicadores 
+}
+round(resab7,1)
+```
+
+Con maxdepth=15
+```{r}
+resab8 = matrix(nrow = 10, ncol = 5)
+colnames(resab8) = c("e", "FN", "FP", "AUC", "KS")
+
+for (i in 1:10) {
+  train1 = base_submuestreada[-cortes[[i]], ]
+  test1 = base_submuestreada[cortes[[i]], ]
+  modad8 = rpart(deposit ~ ., method="class", data=train1, minsplit=67, minbucket=34,  maxdepth=15, cp=0.0005)
+  predad8 =predict(modad8,newdata = test1, type="class")
+  predicad8 = as.numeric(predad8)
+  fmab8 = eval(test1$deposit, predicad8)
+  resab8[i, ] = fmab8$indicadores 
+}
+round(resab8,1)
+```
+
+
+
+Ver las medias de todos:
+
+```{r}
+lab4 = apply(resab3 , 2, mean); lab4
+```
+
+```{r}
+lab5 = apply(resab4 , 2, mean); lab5
+```
+
+```{r}
+lab6 = apply(resab5 , 2, mean); lab6
+```
+
+```{r}
+lab7 = apply(resab6 , 2, mean); lab7
+```
+
+```{r}
+lab8 = apply(resab7 , 2, mean); lab8
+```
+
+```{r}
+lab9 = apply(resab7 , 2, mean); lab9
+```
+
+
+# Random Forest
+
+ntree=10 
+```{r}
+resrf1    <- matrix(nrow = 10, ncol = 5)
+colnames(resrf1)  <- c("e", "FN", "FP", "AUC", "KS")
+
+for (i in 1:10) {
+  train1 = base_submuestreada[-cortes[[i]], ]
+  test1 = base_submuestreada[cortes[[i]], ]
+  modr1=randomForest(deposit ~ ., method="class", data=train1, ntree = 10)
+  predr1=predict(modr1, test1)
+  predicr1=as.numeric(predr1)
+  fr1= eval(test1$deposit,predicr1 )
+  resrf1[ i, ] <- fr1$indicadores
+}
+round(resrf1,1)
+```
+ntree=15
+```{r}
+resrf2    <- matrix(nrow = 10, ncol = 5)
+colnames(resrf2)  <- c("e", "FN", "FP", "AUC", "KS")
+
+for (i in 1:10) {
+  train1 = base_submuestreada[-cortes[[i]], ]
+  test1 = base_submuestreada[cortes[[i]], ]
+  modr2=randomForest(deposit ~ ., method="class", data=train1, ntree = 15)
+  predr2=predict(modr2, test1)
+  predicr2=as.numeric(predr2)
+  fr2= eval(test1$deposit,predicr2)
+  resrf2[ i, ] <- fr2$indicadores
+}
+round(resrf2,1)
+```
+ntree=20
+```{r}
+resrf3    <- matrix(nrow = 10, ncol = 5)
+colnames(resrf3)  <- c("e", "FN", "FP", "AUC", "KS")
+
+for (i in 1:10) {
+  train1 = base_submuestreada[-cortes[[i]], ]
+  test1 = base_submuestreada[cortes[[i]], ]
+  modr3=randomForest(deposit ~ ., method="class", data=train1, ntree = 20)
+  predr3=predict(modr3, test1)
+  predicr3=as.numeric(predr3)
+  fr3= eval(test1$deposit,predicr3)
+  resrf3[ i, ] <- fr3$indicadores
+}
+round(resrf3,1)
+```
+ntree=50
+
+```{r}
+resrf4    <- matrix(nrow = 10, ncol = 5)
+colnames(resrf4)  <- c("e", "FN", "FP", "AUC", "KS")
+
+for (i in 1:10) {
+  train1 = base_submuestreada[-cortes[[i]], ]
+  test1 = base_submuestreada[cortes[[i]], ]
+  modr4=randomForest(deposit ~ ., method="class", data=train1, ntree = 50)
+  predr4=predict(modr4, test1)
+  predicr4=as.numeric(predr4)
+  fr4= eval(test1$deposit,predicr4)
+  resrf4[ i, ] <- fr4$indicadores
+}
+round(resrf4,1)
+```
+
+
+ntree=75
+
+```{r}
+resrf5   <- matrix(nrow = 10, ncol = 5)
+colnames(resrf5)  <- c("e", "FN", "FP", "AUC", "KS")
+
+for (i in 1:10) {
+  train1 = base_submuestreada[-cortes[[i]], ]
+  test1 = base_submuestreada[cortes[[i]], ]
+  modr5=randomForest(deposit ~ ., method="class", data=train1, ntree = 75)
+  predr5=predict(modr5, test1)
+  predicr5=as.numeric(predr5)
+  fr5= eval(test1$deposit,predicr5)
+  resrf5[ i, ] <- fr5$indicadores
+}
+round(resrf5,1)
+```
+
+ntree=100
+
+```{r}
+resrf6    <- matrix(nrow = 10, ncol = 5)
+colnames(resrf6)  <- c("e", "FN", "FP", "AUC", "KS")
+
+for (i in 1:10) {
+  train1 = base_submuestreada[-cortes[[i]], ]
+  test1 = base_submuestreada[cortes[[i]], ]
+  modr6=randomForest(deposit ~ ., method="class", data=train1, ntree = 100)
+  predr6=predict(modr6, test1)
+  predicr6=as.numeric(predr6)
+  fr6= eval(test1$deposit,predicr6)
+  resrf6[ i, ] <- fr6$indicadores
+}
+round(resrf6,1)
+```
+
+Ver las medias de todos:
+
+```{r}
+lrf1 = apply(resrf1 , 2, mean); lrf1
+```
+
+```{r}
+lrf2 = apply(resrf2 , 2, mean); lrf2
+```
+
+```{r}
+lrf3 = apply(resrf3 , 2, mean); lrf3
+```
+
+```{r}
+lrf4 = apply(resrf4 , 2, mean); lrf4
+```
+
+```{r}
+lrf5 = apply(resrf5 , 2, mean); lrf5
+```
+
+```{r}
+lrf6 = apply(resrf6 , 2, mean); lrf6
+```
+
+
+# KNN
+```{r}
+knn1 <- function(train,test,k){
+  train3 = base_submuestreada[-cortes[[i]],]
+  test3 = base_submuestreada[cortes[[i]],]
+  d=as.matrix(daisy(rbind(train[,-14],test[,-14])))
+  d1=d[1:nrow(train),(nrow(train)+1):(nrow(train)+nrow(test))]
+  r1 <- nrow(train)
+  r2 <- nrow(test)
+  dk <- d[1:r1,(r1+1):(r1+r2)]
+  pred <- c()
+  for(i in 1:nrow(test3)){
+    d1 <- dk[,i]
+    #o=order(d1)
+    clas <- train$deposit[order(d1)][1:k] #cambiar siempre la variable de clasificación acá
+    pred[i] <-  mfv(clas)
+    
+  }
+  return(pred)
+  
+}
+res_KNN = matrix(nrow = 10, ncol = 5)
+colnames(res_KNN) = c("e","FP","FN","AUC","KS")
+for(i in 1:10){
+  train3 = base_submuestreada[-cortes[[i]],]
+  test3 = base_submuestreada[cortes[[i]],]
+  
+  pred_knn <- knn1(train = train3, test = test3, k = 27)
+  f5=eval(y=test3$deposit, pred=as.numeric(factor(pred_knn)))
+  res_KNN[i,] = f5$indicadores
+}
+
+res_KNN
+
+```
+
+```{r}
+medias_knn = apply(res_KNN, 2, mean)
+medias_knn
+```
+
+```{r}
+res_KNN2 = matrix(nrow = 10, ncol = 5)
+colnames(res_KNN2) = c("e","FP","FN","AUC","KS")
+for(i in 1:10){
+  train3 = base_submuestreada[-cortes[[i]],]
+  test3 = base_submuestreada[cortes[[i]],]
+  
+  pred_knn <- knn1(train = train3, test = test3, k = 5)
+  f5=eval(y=test3$deposit, pred=as.numeric(factor(pred_knn)))
+  res_KNN2[i,] = f5$indicadores
+}
+
+res_KNN2
+```
+
+
+```{r}
+medias_knn2 = apply(res_KNN2, 2, mean)
+medias_knn2
+```
+
+```{r}
+res_KNN3 = matrix(nrow = 10, ncol = 5)
+colnames(res_KNN3) = c("e","FP","FN","AUC","KS")
+for(i in 1:10){
+  train3 = base_submuestreada[-cortes[[i]],]
+  test3 = base_submuestreada[cortes[[i]],]
+  
+  pred_knn <- knn1(train = train3, test = test3, k = 15)
+  f5=eval(y=test3$deposit, pred=as.numeric(factor(pred_knn)))
+  res_KNN3[i,] = f5$indicadores
+}
+
+res_KNN3
+```
+
+```{r}
+medias_knn3 = apply(res_KNN3, 2, mean)
+medias_knn3
+
+```
+
+
+```{r}
+
+
+res_KNN4 = matrix(nrow = 10, ncol = 5)
+colnames(res_KNN4) = c("e","FP","FN","AUC","KS")
+for(i in 1:10){
+  train3 = base_submuestreada[-cortes[[i]],]
+  test3 = base_submuestreada[cortes[[i]],]
+  
+  pred_knn <- knn1(train = train3, test = test3, k = 35)
+  f5=eval(y=test3$deposit, pred=as.numeric(factor(pred_knn)))
+  res_KNN4[i,] = f5$indicadores
+}
+
+res_KNN4
+
+```
+
+
+```{r}
+medias_knn4 = apply(res_KNN4, 2, mean)
+medias_knn4
+
+```
+
+```{r}
+res_KNN5 = matrix(nrow = 10, ncol = 5)
+colnames(res_KNN5) = c("e","FP","FN","AUC","KS")
+for(i in 1:10){
+  train3 = base_submuestreada[-cortes[[i]],]
+  test3 = base_submuestreada[cortes[[i]],]
+  
+  pred_knn <- knn1(train = train3, test = test3, k = 3)
+  f5=eval(y=test3$deposit, pred=as.numeric(factor(pred_knn)))
+  res_KNN5[i,] = f5$indicadores
+}
+
+res_KNN5
+```
+
+
+
+```{r}
+medias_knn5 = apply(res_KNN5, 2, mean)
+medias_knn5
+```
+
+#Bagging
+
+
+```{r}
+ks = function(pred,y) {
+  predictions = prediction(pred,y) 
+  des = performance(predictions,"tpr","fpr")    
+  ks = max(attributes(des)$y.values[[1]]*100 - 
+           attributes(des)$x.values[[1]]*100)
+  return(ks)
+}
+```
+
+```{r}
+eval1=function(y,pred){
+  confu=table(y,pred$class)
+  e= 1-sum(diag(confu))/sum(confu)
+  falsos=1-diag(confu)/apply(confu,1,sum)
+  error=c(e,falsos)*100
+  auc=curvaROC(pred$prob[,2],y)$auc
+  ks=ks(pred$prob[,2],y)
+  indicadores=c(error,auc,ks)
+  names(indicadores)=c("e","FP","FN", "AUC", "KS")
+  return(list(Matriz=confu,indicadores=indicadores))
+}
+```
+
+mfinal=10
+```{r}
+resbagging=matrix(nrow=10, ncol=5)
+colnames(resbagging)=c("e", "FN", "FP", "AUC", "KS")
+for(i in 1:10){
+  train1 = base_submuestreada[-cortes[[i]], ]
+  test1 = base_submuestreada[cortes[[i]], ]
+  modba1=bagging(deposit~., method="class", mfinal=10, data=train1, 
+                 control = rpart.control(minsplit = 67, minbucket = 34, cp = 0.0005))
+  predba1=predict(modba1, test1, type="class")
+  print(table(test1$deposit,predba1$class))
+  fba1=eval1(test1$deposit, predba1)
+resbagging[i, ] <- fba1$indicadores 
+}
+
+resbagging
+```
+
+```{r}
+indbag = apply(resbagging , 2, mean); indbag
+```
+
+mfinal=19
+```{r}
+resbagging2=matrix(nrow=10, ncol=5)
+colnames(resbagging2)=c("e", "FN", "FP", "AUC", "KS")
+for(i in 1:10){
+  train1 = base_submuestreada[-cortes[[i]], ]
+  test1 = base_submuestreada[cortes[[i]], ]
+  modba1=bagging(deposit~., method="class", mfinal=19, data=train1, 
+                 control = rpart.control(minsplit = 67, minbucket = 34, cp = 0.0005))
+  predba1=predict(modba1, test1, type="class")
+  print(table(test1$deposit,predba1$class))
+  fba1=eval1(test1$deposit, predba1)
+resbagging2[i, ] <- fba1$indicadores 
+}
+
+resbagging2
+```
+
+```{r}
+indbag2 = apply(resbagging2 , 2, mean); indbag2
+```
+
+mfinal=30
+```{r}
+resbagging3=matrix(nrow=10, ncol=5)
+colnames(resbagging3)=c("e", "FN", "FP", "AUC", "KS")
+for(i in 1:10){
+  train1 = base_submuestreada[-cortes[[i]], ]
+  test1 = base_submuestreada[cortes[[i]], ]
+  modba1=bagging(deposit~., method="class", mfinal=30, data=train1, 
+                 control = rpart.control(minsplit = 67, minbucket = 34, cp = 0.0005))
+  predba1=predict(modba1, test1, type="class")
+  print(table(test1$deposit,predba1$class))
+  fba1=eval1(test1$deposit, predba1)
+resbagging3[i, ] <- fba1$indicadores 
+}
+
+resbagging3
+```
+
+```{r}
+indbag3 = apply(resbagging3 , 2, mean); indbag3
+```
+
+mfinal=35
+```{r}
+resbagging4=matrix(nrow=10, ncol=5)
+colnames(resbagging4)=c("e", "FN", "FP", "AUC", "KS")
+for(i in 1:10){
+  train1 = base_submuestreada[-cortes[[i]], ]
+  test1 = base_submuestreada[cortes[[i]], ]
+  modba1=bagging(deposit~., method="class", mfinal=35, data=train1, 
+                 control = rpart.control(minsplit = 67, minbucket = 34, cp = 0.0005))
+  predba1=predict(modba1, test1, type="class")
+  print(table(test1$deposit,predba1$class))
+  fba1=eval1(test1$deposit, predba1)
+resbagging4[i, ] <- fba1$indicadores 
+}
+
+resbagging4
+```
+
+```{r}
+indbag4 = apply(resbagging4 , 2, mean); indbag4
+```
+
+# Con toda la base:
+
+```{r}
+resfinal    <- matrix(nrow = 10, ncol = 5)
+colnames(resfinal)  <- c("e", "FN", "FP", "AUC", "KS")
+
+for (i in 1:10) {
+  modfinal=randomForest(deposit ~ ., method="class", data=base_submuestreada, ntree = 100)
+  predfinal=predict(modfinal, base_submuestreada)
+  predichofinal=as.numeric(predfinal)
+  ffinal= eval(base_submuestreada$deposit,predichofinal)
+  resfinal[ i, ] <- ffinal$indicadores
+}
+round(resfinal,1)
+```
+
+```{r}
+lrfinal = apply(resfinal , 2, mean); lrfinal
+```
