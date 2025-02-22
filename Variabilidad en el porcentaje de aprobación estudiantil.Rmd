@@ -1,0 +1,729 @@
+---
+title: "PROYECTO_COLEGIOS_REGRE"
+author: "Miriam Calvo"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r}
+#install.packages("ggthemes")
+#install.packages("cowplot")
+```
+
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(ggthemes)
+library(cowplot)
+library(car)
+library(olsrr)
+library(lmtest)
+library(tseries)
+library(e1071)
+library(dglm)
+library(MASS)
+```
+
+
+```{r}
+library(readxl)
+BASE_COLEGIOS <- read_excel("D:/Descargas/BASE_COLEGIOS.xlsx")
+
+```
+
+
+```{r}
+class <- lapply(BASE_COLEGIOS, class)
+unlist(class, use.names = TRUE)
+```
+
+
+
+```{r}
+BASE_COLEGIOS$zona = as.factor(BASE_COLEGIOS$zona)
+BASE_COLEGIOS$rama = as.factor(BASE_COLEGIOS$rama)
+BASE_COLEGIOS$sector = as.factor(BASE_COLEGIOS$sector)
+```
+
+
+```{r}
+BASE_COLEGIOS$porc_aprob_9 = as.numeric(BASE_COLEGIOS$porc_aprob_9)
+BASE_COLEGIOS$porc_aprob_10 = as.numeric(BASE_COLEGIOS$porc_aprob_10)
+BASE_COLEGIOS$porc_aprob_11 = as.numeric(BASE_COLEGIOS$porc_aprob_11)
+BASE_COLEGIOS$porc_reprob_9 = as.numeric(BASE_COLEGIOS$porc_reprob_9)
+BASE_COLEGIOS$porc_reprob_10 = as.numeric(BASE_COLEGIOS$porc_reprob_10)
+BASE_COLEGIOS$porc_reprob_11 = as.numeric(BASE_COLEGIOS$porc_reprob_11)
+```
+
+# Estadística Descriptiva
+
+```{r}
+summary(BASE_COLEGIOS)
+```
+
+
+```{r}
+BASE_COLEGIOS%>%
+  group_by(rama)%>%
+    summarise(Promedio=mean(porc_aprob_9,na.rm = TRUE),Mediana = median(porc_aprob_9, na.rm = TRUE),Q1=quantile(porc_aprob_9,0.25,na.rm = TRUE),Q3=quantile(porc_aprob_9,0.75,  na.rm = TRUE), Varianza=var(porc_aprob_9, na.rm = TRUE),SD=sd(porc_aprob_9, na.rm = TRUE),Maximo=max(porc_aprob_9,na.rm = TRUE),Minimo=min(porc_aprob_9, na.rm = TRUE))
+```
+
+
+```{r}
+BASE_COLEGIOS%>%
+  group_by(sector)%>%
+    summarise(Promedio=mean(porc_aprob_9,na.rm = TRUE),Mediana = median(porc_aprob_9, na.rm = TRUE),Q1=quantile(porc_aprob_9,0.25,na.rm = TRUE),Q3=quantile(porc_aprob_9,0.75,  na.rm = TRUE), Varianza=var(porc_aprob_9, na.rm = TRUE),SD=sd(porc_aprob_9, na.rm = TRUE),Maximo=max(porc_aprob_9,na.rm = TRUE),Minimo=min(porc_aprob_9, na.rm = TRUE))
+```
+
+
+```{r}
+BASE_COLEGIOS%>%
+  group_by(zona)%>%
+    summarise(Promedio=mean(porc_aprob_9,na.rm = TRUE),Mediana = median(porc_aprob_9, na.rm = TRUE),Q1=quantile(porc_aprob_9,0.25,na.rm = TRUE),Q3=quantile(porc_aprob_9,0.75,  na.rm = TRUE), Varianza=var(porc_aprob_9, na.rm = TRUE),SD=sd(porc_aprob_9, na.rm = TRUE),Maximo=max(porc_aprob_9,na.rm = TRUE),Minimo=min(porc_aprob_9, na.rm = TRUE))
+```
+
+
+```{r}
+BASE_COLEGIOS %>% 
+select(zona, porc_aprob_9) %>%
+  filter(!is.na(porc_aprob_9)) %>% 
+  count(zona)
+
+BASE_COLEGIOS %>% 
+select(sector, porc_aprob_9) %>%
+  filter(!is.na(porc_aprob_9)) %>% 
+  count(sector)
+
+BASE_COLEGIOS %>% 
+  select(rama, porc_aprob_9) %>%
+  filter(!is.na(porc_aprob_9)) %>% 
+  count(rama)
+```
+
+
+## Gráficos para las variables cualitativas 
+### Para el grado noveno
+
+```{r}
+
+scplt1 = ggplot(BASE_COLEGIOS, aes(x=idh, y=porc_aprob_9)) + geom_point() + theme_stata()+
+  ylab("Porcentaje de aprobación (%)") +
+  xlab("IDH cantonal") +labs(caption = "Fuente: Atlas de Desarrollo Humano Cantonal (2019)" )+
+  geom_smooth(method = "lm", se=F)+theme(axis.title = element_text(size = 7))
+
+scplt2 = ggplot(BASE_COLEGIOS, aes(x=ipm, y=porc_aprob_9)) + geom_point() + theme_stata()+
+  ylab("Porcentaje de aprobación (%)") +
+  xlab("IPM cantonal") +labs(caption = "Fuente: Atlas de Desarrollo Humano Cantonal (2019)" )+
+  geom_smooth(method = "lm", se=F)+theme(axis.title = element_text(size = 7))
+ 
+## Revisar columna de la variable dependiente y cantidad de matricula en la base
+scplt3 = ggplot(BASE_COLEGIOS, aes(x=mat_noveno, y=porc_aprob_9)) + geom_point() + theme_stata()+
+  ylab("Porcentaje de aprobación (%)") +
+  xlab("Cantidad de matrícula") +labs(caption = "Fuente: Ministerio de Educación Pública (2019)" )+
+  geom_smooth(method = "lm", se=F)+theme(axis.title = element_text(size = 7))
+
+scplt4 = ggplot(BASE_COLEGIOS, aes(x=porc_reprob_9, y=porc_aprob_9)) + geom_point() + theme_stata()+
+  ylab("Porcentaje de aprobación (%)") +
+  xlab("Porcentaje de reprobación del año 2018 (%)") +labs(caption = "Fuente: Ministerio de Educación Pública (2019)" )+
+  geom_smooth(method = "lm", se=F) +theme(axis.title = element_text(size = 7)) 
+
+plot_grid(scplt1, scplt2, scplt3, scplt4, labels = "auto")
+ggsave(path = "C:/Users/miria/OneDrive/Escritorio/Estadística- UCR/XS2130 - Modelos de Regresión Aplicados", device='pdf', dpi=320, filename = "yy22")
+```
+
+## Gráficos para las variables cuantitativas 
+
+### Para el grado de noveno
+
+
+```{r}
+bxplt1 = ggplot(BASE_COLEGIOS,aes(x=sector,y=porc_aprob_9, fill=sector))+
+  geom_boxplot()+theme_minimal()+theme_stata()+
+  labs(y="Porcentaje de aprobación (%)", x="Sector")+theme(legend.position = "none")+ scale_x_discrete(labels=c("Público","Privado", "Subvencionado"))+
+  theme(axis.text=element_text(size=8))
+
+
+bxplt2 = ggplot(BASE_COLEGIOS,aes(x=zona,y=porc_aprob_9, fill=zona))+
+  geom_boxplot()+theme_minimal()+theme_stata()+
+  labs(y="Porcentaje de aprobación (%)", x="Zona")+theme(legend.position = "none")+ scale_x_discrete(labels=c("Urbana","Rural"))+theme(axis.text=element_text(size=8))
+
+bxplt3 = ggplot(BASE_COLEGIOS,aes(x=rama,y=porc_aprob_9, fill=rama))+
+  geom_boxplot()+theme_minimal()+theme_stata()+
+  labs(y="Porcentaje de aprobación (%)", x="Rama")+theme(legend.position = "none")+ scale_x_discrete(labels=c("AD","AN", "TD", "TN", "Artístico"))+theme(axis.text=element_text(size=8))
+
+plot_grid(bxplt1, bxplt2, bxplt3, nrow = 1, labels="auto")
+```
+
+
+# Interacciones: Variable categórica Zona
+
+
+```{r}
+BASE_COLEGIOS$urbano = ifelse(BASE_COLEGIOS$zona==1, "Urbana", "Rural")
+```
+
+
+```{r}
+# rojo es rural, azul es urbano. Hacer esto mismo con ggplot
+slope_col = 2*(BASE_COLEGIOS$urbano == "Rural") + 4*(BASE_COLEGIOS$urbano == "Urbana")
+plot(BASE_COLEGIOS$idh, BASE_COLEGIOS$porc_aprob_9, col = slope_col, pch=18)
+
+```
+
+# Correlaciones
+
+```{r}
+#con variables cuantitativas
+
+round(cor(BASE_COLEGIOS[,c(13,8,9,10, 16)], use="pairwise.complete.obs"),3)
+
+```
+
+
+# Construccion del modelo grande para noveno
+
+```{r}
+mod.grande = lm(porc_aprob_9~idh+ipm+mat_noveno+porc_reprob_9+rama+sector+zona, 
+                data = BASE_COLEGIOS)
+summary(mod.grande)
+
+mod.reducido=step(mod.grande)
+summary(mod.reducido)
+```
+#Pruebas supuestos para ambos modelos
+```{r}
+shapiro.test(mod.grande$residuals)
+shapiro.test(mod.reducido$residuals)
+
+ncvTest(mod.grande)
+ncvTest(mod.reducido)
+
+AIC(mod.grande)
+AIC(mod.reducido)
+```
+
+# Cocina al modelo grande
+```{r}
+#Residuos
+estandariz=rstandard(mod.grande)
+estudentiz=rstudent(mod.grande)
+residuos=residuals(mod.grande)
+```
+
+
+```{r}
+# Valores influyentes
+
+###Leverage
+lev.mod.grande=hatvalues(mod.grande)
+
+###DFFIT
+dffit.mod.grande=dffits(mod.grande)
+
+###D de Cook
+cook.mod.grande=cooks.distance(mod.grande)
+
+###DFBETAs
+dfbeta.mod.grande=dfbetas(mod.grande)
+
+```
+
+
+```{r}
+vif(mod.grande)
+```
+
+# prueba de normalidad
+```{r}
+shapiro.test(residuos)
+jarque.bera.test(residuos)
+qqPlot(residuos)
+```
+
+#prueba de heterocedasticidad
+```{r}
+
+plot(mod.grande$fitted,estandariz)
+ncvTest(mod.grande) #mejor porque no hay normalidad 
+```
+
+
+```{r}
+plot(mod.grande$fitted,estandariz, cex=0.2*abs(dffit.mod.grande)/mean(abs(dffit.mod.grande)))
+title("Mod.grande: Residuos por valores predichos, ponderados por DFFIT")
+```
+
+
+
+# Seleccion de un modelo mas parsimonioso con AIC y criterio p-value
+
+```{r}
+
+ols_step_both_p(mod.grande, penter=0.05, prem=0.05, progress=TRUE)
+
+```
+
+
+```{r}
+
+modboth = lm(porc_aprob_9~sector+rama+mat_noveno+porc_reprob_9, data = BASE_COLEGIOS)
+summary(modboth)
+```
+
+
+
+```{r}
+step(mod.grande, direction="both")
+```
+```{r}
+
+```
+
+#corregir falta de normalidad
+```{r}
+boxcox(porc_aprob_9~idh+ipm+mat_noveno+porc_reprob_9+rama+sector+zona, 
+                data = BASE_COLEGIOS)
+
+bcobjeto=boxcox(porc_aprob_9~mat_noveno+porc_reprob_9+rama+sector, 
+                data = BASE_COLEGIOS)
+
+cbind(bcobjeto$x,bcobjeto$y)
+
+bcobjeto$x[bcobjeto$y==max(bcobjeto$y)]
+```
+
+```{r}
+attach(BASE_COLEGIOS)
+names(BASE_COLEGIOS)
+porc_aprob_9_lambda1= I(porc_aprob_9^(2))
+mod.grande2 = lm(porc_aprob_9_lambda1~idh+ipm+mat_noveno+porc_reprob_9+rama+sector+zona, 
+                data = BASE_COLEGIOS)
+summary(mod.grande2)
+
+mod.reducido2=lm(porc_aprob_9_lambda1 ~ mat_noveno + porc_reprob_9+sector+rama)
+summary(mod.reducido2)
+```
+#Pruebas supuestos para ambos modelos
+```{r}
+shapiro.test(mod.grande2$residuals)
+shapiro.test(mod.reducido2$residuals)
+
+ncvTest(mod.grande2)
+ncvTest(mod.reducido2)
+
+AIC(mod.grande2)
+AIC(mod.reducido2)
+```
+#tratando de corregir heterocedasticidad GRANDE
+```{r}
+spreadLevelPlot(mod.grande)
+```
+#tratando de corregir heterocedasticidad REDUCIDO
+```{r}
+spreadLevelPlot(mod.reducido)
+```
+
+#CORRIGIENDO HETEROSCEDASTICIDAD GRANDE
+```{r}
+porc_aprob_9_grande_2= I(porc_aprob_9^(17.3))
+mod.grande3 = lm(porc_aprob_9_grande_2~idh+ipm+mat_noveno+porc_reprob_9+rama+sector+zona, 
+                data = BASE_COLEGIOS)
+summary(mod.grande3)
+```
+
+
+#CORRIGIENDO HETEROSCEDASTICIDAD REDUCIDO
+```{r}
+porc_aprob_9_reducido_2= I(porc_aprob_9^(16.85))
+mod.reducido3 = lm(porc_aprob_9_reducido_2~+mat_noveno+porc_reprob_9+rama+sector, 
+                data = BASE_COLEGIOS)
+
+summary(mod.reducido3)
+```
+#Pruebas supuestos para ambos modelos
+```{r}
+shapiro.test(mod.grande3$residuals)
+shapiro.test(mod.reducido3$residuals)
+
+ncvTest(mod.grande3)
+ncvTest(mod.reducido3)
+
+AIC(mod.grande3)
+AIC(mod.reducido3)
+```
+```{r}
+library(sjPlot)
+library(sjmisc)
+library(sjlabelled)
+tab_model(mod.grande3,mod.reducido3,show.ci = FALSE,dv.labels = c("Modelo grande con transformacion propuesta por spreadLevelPlot.","Modelo reducido con transformacion propuesta por spreadLevelPlot."))
+```
+
+
+```{r}
+tabla.het <- matrix(rep(NA,6),nrow=3,ncol=2)
+
+colnames(tabla.het) <- c("Grande","Reducido")
+rownames(tabla.het) <- c("Original","dos","17.27")
+
+tabla.het[1,1] <- ncvTest(mod.grande)$p
+tabla.het[1,2] <- ncvTest(mod.reducido)$p
+
+tabla.het[2,1] <- ncvTest(mod.grande2)$p
+tabla.het[2,2] <- ncvTest(mod.reducido2)$p
+
+tabla.het[3,1] <- ncvTest(mod.grande3)$p
+tabla.het[3,2] <- ncvTest(mod.reducido3)$p
+
+
+
+round(tabla.het,3)
+
+```
+```{r}
+residuos=residuals(mod.grande)
+shapiro.test(residuos)
+
+residuos2=residuals(mod.grande2)
+shapiro.test(residuos2)
+
+residuos3=residuals(mod.grande3)
+shapiro.test(residuos3)
+```
+
+
+#EVALUO TRANSFORMACIONES
+```{r}
+par(mfrow=c(2,2))
+plot(porc_aprob_9~porc_reprob_9)
+abline(lm(porc_aprob_9~porc_reprob_9))
+plot(porc_aprob_9~mat_noveno)
+abline(lm(porc_aprob_9~mat_noveno))
+plot(porc_aprob_9~idh)
+abline(lm(porc_aprob_9~idh))
+plot(porc_aprob_9~ipm)
+abline(lm(porc_aprob_9~ipm))
+
+  
+  
+```
+
+
+#EVALUO despues de transformaciones
+```{r}
+lnmat_noveno <- (log(mat_noveno))
+lnporc_reprob_9 <- log(porc_reprob_9+1)
+lnporc_aprob_9 <- log(porc_aprob_9)
+
+```
+
+#EVALUO despues de transformaciones
+```{r}
+par(mfrow=c(2,2))
+plot(porc_aprob_9~lnporc_reprob_9)
+abline(lm(porc_aprob_9~lnporc_reprob_9))
+plot(porc_aprob_9~lnmat_noveno)
+abline(lm(porc_aprob_9~lnmat_noveno))
+plot(porc_aprob_9~idh)
+abline(lm(porc_aprob_9~idh))
+plot(porc_aprob_9~ipm)
+abline(lm(porc_aprob_9~ipm))
+  
+```
+
+#PLANTEO MODELOS GRANDES CON TRASNFORMACION
+```{r}
+mod.grande4 <- lm(porc_aprob_9~idh+ipm+lnmat_noveno+porc_reprob_9+rama+sector+zona, 
+                data = BASE_COLEGIOS)
+mod.grande5 <- lm(porc_aprob_9~idh+ipm+mat_noveno+lnporc_reprob_9+rama+sector+zona, 
+                data = BASE_COLEGIOS)
+mod.grande6 <- lm(lnporc_aprob_9~idh+ipm+mat_noveno+porc_reprob_9+rama+sector+zona, 
+                data = BASE_COLEGIOS)
+
+summary(mod.grande4)
+summary(mod.grande5)
+summary(mod.grande6)
+
+```
+
+#Pruebas supuestos para LOS 3 modelos
+```{r}
+shapiro.test(mod.grande4$residuals)
+shapiro.test(mod.grande5$residuals)
+shapiro.test(mod.grande6$residuals)
+
+ncvTest(mod.grande4)
+ncvTest(mod.grande5)
+ncvTest(mod.grande6)
+
+AIC(mod.grande4)
+AIC(mod.grande5)
+AIC(mod.grande6)
+```
+
+#PLANTEO MODELOS reducidos CON TRASNFORMACION
+```{r}
+mod.reducido4 <- lm(porc_aprob_9~lnmat_noveno+porc_reprob_9+rama+sector, 
+                data = BASE_COLEGIOS)
+mod.reducido5 <- lm(porc_aprob_9~mat_noveno+lnporc_reprob_9+rama+sector, 
+                data = BASE_COLEGIOS)
+mod.reducido6 <- lm(lnporc_aprob_9~mat_noveno+porc_reprob_9+rama+sector, 
+                data = BASE_COLEGIOS)
+
+summary(mod.reducido4)
+summary(mod.reducido5)
+summary(mod.reducido6)
+
+```
+
+#Pruebas supuestos para LOS 3 modelos
+```{r}
+shapiro.test(mod.reducido4$residuals)
+shapiro.test(mod.reducido5$residuals)
+shapiro.test(mod.reducido6$residuals)
+
+ncvTest(mod.reducido4)
+ncvTest(mod.reducido5)
+ncvTest(mod.reducido6)
+
+AIC(mod.reducido4)
+AIC(mod.reducido5)
+AIC(mod.reducido6)
+```
+
+#Intento corregir normalidad después de transofmar porc_reprob_9
+```{r}
+boxcox(porc_aprob_9~idh+ipm+mat_noveno+lnporc_reprob_9+rama+sector+zona, 
+                data = BASE_COLEGIOS)
+
+bcobjeto=boxcox(porc_aprob_9~idh+ipm+zona+mat_noveno+lnporc_reprob_9+rama+sector, 
+                data = BASE_COLEGIOS)
+
+cbind(bcobjeto$x,bcobjeto$y)
+
+bcobjeto$x[bcobjeto$y==max(bcobjeto$y)]
+```
+#Intento corregir normalidad después de transofmar porc_reprob_9
+```{r}
+attach(BASE_COLEGIOS)
+
+porc_aprob_9_lambda1= I(porc_aprob_9^(2))
+mod.grande7 = lm(porc_aprob_9_lambda1~idh+ipm+mat_noveno+lnporc_reprob_9+rama+sector+zona, 
+                data = BASE_COLEGIOS)
+summary(mod.grande7)
+
+mod.reducido7=lm(porc_aprob_9_lambda1 ~ mat_noveno + lnporc_reprob_9+sector+rama)
+summary(mod.reducido7)
+```
+#Pruebas supuestos para ambos modelos
+```{r}
+shapiro.test(mod.grande7$residuals)
+shapiro.test(mod.reducido7$residuals)
+
+ncvTest(mod.grande7)
+ncvTest(mod.reducido7)
+
+AIC(mod.grande7)
+AIC(mod.reducido7)
+```
+
+#tratando de corregir heterocedasticidad GRANDE despues de transormacion porc_Reprob_9
+```{r}
+spreadLevelPlot(mod.grande5)
+```
+
+```{r}
+spreadLevelPlot(mod.reducido5)
+```
+
+
+#CORRIGIENDO HETEROSCEDASTICIDAD grande
+```{r}
+porc_aprob_9_grande_2= I(porc_aprob_9^(17.6))
+mod.grande8 = lm(porc_aprob_9_grande_2~idh+ipm+mat_noveno+lnporc_reprob_9+rama+sector+zona, 
+                data = BASE_COLEGIOS)
+summary(mod.grande8)
+```
+
+
+#CORRIGIENDO HETEROSCEDASTICIDAD pequeño
+```{r}
+porc_aprob_9_grande_2= I(porc_aprob_9^(17.1))
+mod.reducido8 = lm(porc_aprob_9_grande_2~mat_noveno+lnporc_reprob_9+rama+sector, 
+                data = BASE_COLEGIOS)
+summary(mod.reducido8)
+```
+
+#Pruebas supuestos para ambos modelos
+```{r}
+shapiro.test(mod.grande8$residuals)
+shapiro.test(mod.reducido8$residuals)
+
+ncvTest(mod.grande8)
+ncvTest(mod.reducido8)
+
+AIC(mod.grande8)
+AIC(mod.reducido8)
+```
+
+
+
+#MINIMOS CUADRADOS PONDERADOS
+#para modelo grande
+```{r}
+
+datos=na.omit(BASE_COLEGIOS)
+datos$lnporc_reprob_9 <- log(datos$porc_reprob_9+1)
+mod.grandemcp <- lm(porc_aprob_9~idh+ipm+mat_noveno+lnporc_reprob_9+rama+sector+zona,data=datos)
+abs.res1=abs(residuals(mod.grandemcp))
+mod.ponde1=lm(abs.res1~idh+ipm+mat_noveno+lnporc_reprob_9+rama+sector+zona,data=datos)
+ponde1=1/abs(fitted(mod.ponde1))
+###Hasta aquÃ­ lo que se hizo es crear el ponderador
+###Como el inverso del valor predicho
+###El siguiente modelo ya es ponderado
+
+
+mod.grande9=lm(porc_aprob_9~idh+ipm+mat_noveno+lnporc_reprob_9+rama+sector+zona, weights=I(ponde1),data=datos)
+summary(mod.grande9)
+summary(mod.grandemcp)
+
+ncvTest(mod.grande9)
+
+round(cbind(mod.grandemcp$coef,mod.grande9$coef),4)
+
+```
+
+#para modelo reducido
+```{r}
+
+datos=na.omit(BASE_COLEGIOS)
+mod.reducidomcp <- lm(porc_aprob_9~mat_noveno+porc_reprob_9+rama+sector,data=datos)
+abs.res1=abs(residuals(mod.reducidomcp))
+mod.ponde1=lm(abs.res1~mat_noveno+porc_reprob_9+rama+sector,data=datos)
+ponde1=1/abs(fitted(mod.ponde1))
+###Hasta aquÃ­ lo que se hizo es crear el ponderador
+###Como el inverso del valor predicho
+###El siguiente modelo ya es ponderado
+
+
+mod.reducido9=lm(porc_aprob_9~mat_noveno+porc_reprob_9+rama+sector, weights=I(ponde1),data=datos)
+
+
+abs.res2=abs(residuals(mod.reducido9))
+mod.ponde2=lm(abs.res2~mat_noveno+porc_reprob_9+rama+sector,data=datos)
+ponde2=1/abs(fitted(mod.ponde2))
+
+mod.reducido9a=lm(porc_aprob_9~mat_noveno+porc_reprob_9+rama+sector, weights=I(ponde2),data=datos)
+summary(mod.reducido9a)
+
+round(cbind(mod.reducidomcp$coef,mod.reducido9$coef,mod.reducido9a$coef),4)
+
+
+
+```
+```{r}
+shapiro.test(mod.grande9$residuals)
+shapiro.test(mod.reducido9a$residuals)
+
+ncvTest(mod.grande9)
+ncvTest(mod.reducido9a)
+
+AIC(mod.grande9)
+AIC(mod.reducido9a)
+```
+```{r}
+attach(BASE_COLEGIOS)
+```
+
+```{r}
+attach(BASE_COLEGIOS)
+```
+#Modelos heteroscedasticos
+```{r}
+
+mod.heter=dglm(porc_aprob_9~idh+ipm+mat_noveno+porc_reprob_9+rama+sector+zona, 
+                  dformula~idh+ipm+mat_noveno+porc_reprob_9+rama+sector+zona, family=gaussian)
+summary(mod.heter)
+
+
+
+```
+```{r}
+
+mod.heter.red=dglm(porc_aprob_9~mat_noveno+porc_reprob_9+rama+sector, 
+                  dformula~mat_noveno+porc_reprob_9+rama+sector, family=gaussian)
+summary(mod.heter.red)
+
+
+
+```
+```{r}
+shapiro.test(mod.heter$residuals)
+shapiro.test(mod.heter.red$residuals)
+
+bptest(mod.heter)
+bptest(mod.heter.red)
+
+
+```
+#ROBUSTA
+```{r}
+library(MASS)
+
+
+mod.huber=rlm(porc_aprob_9 ~ idh+ipm+mat_noveno+porc_reprob_9+zona)
+summary(mod.huber, cor=FALSE)
+###El tcalculado se compara con el t tabular
+qt(0.975,187)
+
+summary(mod.grande)
+
+round(cbind(mod.grande$coef,mod.huber$coef),4)
+shapiro.test(mod.huber$residuals)
+```
+
+
+
+```{r}
+attach(BASE_COLEGIOS)
+
+library(boot)
+
+coefic=function(y,x,d) {
+  lm(y[d]~x[d,])$coef
+}
+
+coef=boot(porc_aprob_9,coefic,R=10000,x=cbind(mat_noveno,lnporc_reprob_9,rama12,rama21,rama31,sector2,sector3))
+
+boot.ci(coef,index=1, type="perc")
+boot.ci(coef,index=2, type="perc")
+boot.ci(coef,index=3, type="perc")
+boot.ci(coef,index=4, type="perc")
+boot.ci(coef,index=5, type="perc")
+boot.ci(coef,index=6, type="perc")
+boot.ci(coef,index=7, type="perc")
+boot.ci(coef,index=8, type="perc")
+
+
+
+
+```
+
+```{r}
+library(car)
+nuevos2=princomp(datos[,c(8,9,10,16)],scores=TRUE, cor=TRUE)
+nuevos2$loadings
+
+###La regresiÃ³n se especifica con las cargas del primer componente.
+
+
+(comp1=nuevos2$scores[,1])
+
+
+modelo.pca.1=lm(porc_aprob_9~comp1+zona+rama+sector,data=datos)
+vif(modelo.pca.1)
+
+
+summary(modelo.pca.1)
+
+```
