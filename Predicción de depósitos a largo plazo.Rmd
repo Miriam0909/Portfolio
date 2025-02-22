@@ -1,6 +1,6 @@
 ---
-title: "arti"
-author: "YPVV"
+title: "Predicción de depósitos a largo plazo"
+author: "Miriam Calvo, Joseph Rivera, Yarlin Vargas"
 date: "2024-06-26"
 output: word_document
 ---
