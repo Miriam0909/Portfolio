@@ -1,0 +1,112 @@
+---
+title: "Untitled"
+author: "Luis Alonso"
+date: "2024-07-02"
+output: html_document
+---
+## Imputacion
+
+```{r}
+sum(is.na(bienestar$Mortalidad_mad))
+library(mice)
+imp = mice(bienestar[,-c(1,2)],m =10)
+base = complete(imp)
+
+
+```
+
+
+## Normalizacion
+
+```{r}
+
+#Min-Max para tener de 0 a 100
+base.rescal <- as.data.frame(lapply(base, scales::rescale))*100
+base = cbind(bienestar[,c(1,2)],base.rescal)
+```
+
+
+##Crear las subdimensiones 1
+
+```{r}
+Ingreso = base[,3]
+
+Desigualdad = base[,c(4,5)]
+pesos = c(0.5,0.5)
+
+
+
+mediapond = function(base, pesos) {
+  if (ncol(base) != length(pesos)) {
+    stop("El número de columnas en los datos no coincide con la longitud del vector de pesos.")
+  }
+    media_ponderada = rowSums(base * pesos)
+    base = cbind(base, media_ponderada)
+    return(base)
+}
+
+Des = mediapond(Desigualdad, pesos)
+c = as.data.frame(cbind(Ingreso,Des$media_ponderada))
+Economica = rowSums(c)/2
+
+
+
+
+```
+
+##Subdimenciones 2
+
+```{r}
+Educa = base[,6]
+Vivien = base[,c(7,8)]
+casa = mediapond(Vivien, pesos)
+d = as.data.frame(cbind(Educa,casa$media_ponderada))
+Social = rowSums(d)/2
+```
+
+
+##Subdimenciones 3
+
+
+```{r}
+SalPu = base[,c(9,10,16)]
+pesos2 = c(0.33,0.33,0.33)
+Mental = base[,11]
+
+publica = mediapond(SalPu, pesos2)
+e = as.data.frame(cbind(publica$media_ponderada,Mental))
+Salud = rowSums(e)/2
+```
+
+
+## Dimension 4
+
+```{r}
+pesos3 = c(0.33,0.33,0.33)
+Agua = base[,c(12,13,14)]
+Aire = base[,15]
+water = mediapond(Agua, pesos3)
+
+
+f = as.data.frame(cbind(Aire,water$media_ponderada))
+Ambiente = rowSums(f)/2
+```
+
+
+
+
+##Base con las dimenciones 
+
+```{r}
+Dim = as.data.frame(cbind(Economica, Social, Salud, Ambiente))
+IBI = rowSums(e)/4
+
+
+
+FINAL = as.data.frame(cbind(base,Dim,IBI))
+```
+
+```{r}
+write.xlsx(FINAL, file = "IBI2.xlsx", rowNames = FALSE)
+```
+
