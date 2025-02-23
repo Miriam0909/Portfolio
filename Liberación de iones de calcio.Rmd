@@ -1,0 +1,191 @@
+---
+title: "Comparación de la capacidad de liberación de iones de Calcio entre cuatro marcas de cementos selladores endodónticos bioactivos"
+author: "Miriam Calvo Alfaro, Paula Cortés Cascante, José Suárez Quesada"
+date: '2023-11-18'
+output: html_document
+---
+#Lib iones de Ca
+```{r}
+options(scipen = 999)
+library(readxl)
+base = read_xlsx("cementos.xlsx")
+base$muestra = as.factor(base$muestra)
+base$dia = as.numeric(base$dia)
+base$diente1 = rep(c(1:37), each = 5)
+base$diente1 = as.factor(base$diente1)
+```
+
+```{r}
+cem = c("Proroot MTA","Control","Bio C Repair","NeoPutty","Biodentine")
+base$cem = c(rep("Proroot MTA",20),rep("Control",15),rep(c("Bio C Repair","NeoPutty","Biodentine"), each = 50))
+base$cem = factor(base$cem,levels = c("Proroot MTA","Bio C Repair","NeoPutty","Biodentine","Control"))
+levels(base$cem)
+base$dia1 = factor(base$dia)
+```
+
+A 4 dientes Proroot MTA Ⓡ de Dentsply Sirona
+B 3 dientes CONTROL
+C 10 dientes Bio C Repair Ⓡ de Angelus
+D 10 dientes NeoPutty Ⓡ de BioMed Avalon
+E 10 dientes Biodentine Ⓡ Septodont
+
+#Gráfico 1. Linealidad de respuesta del diente por tipo de cemento
+```{r}
+library(lattice)
+xyplot(libcaacum~dia|diente1,groups = cem,type=c("r","p"),base,xlab="dia",ylab="mg/L Lib de Ca", auto.key = list(columns = 1, space = "right"))
+```
+
+Bastante lineal
+
+#Gráfico 2. Tendencia de liberación de iones de Calcio en función del tiempo por tipo de cemento
+```{r}
+library(lattice)
+xyplot(libcaacum~dia,group=cem,type = "r",ylab="mg/L Lib iones de Ca",xlab = "Día",auto.key = list(columns = 1, space = "right"),base)
+```
+
+Parece que los dientes en el cemento Proroot, Bio C Repair y NeoPutty liberan más iones de calcio a través del tiempo que el Biodentine y el Control
+
+
+#Correlacion pendientes interceptos
+```{r}
+xyplot(libcaacum~dia|cem,groups = diente1,base,type=c("r","p"), layout = c(3,2),xlab="dia",ylab="mg/L Lib de Ca")
+
+
+library(lme4)
+options(contrasts = c("contr.sum","contr.poly"))
+mod1 = lmer(libcaacum~dia*muestra+(1+dia|diente1),REML = F, base)
+mod2 = lmer(libcaacum~dia*muestra+(1|diente1)+(0+dia|diente1),REML = F, base)
+anova(mod1,mod2)
+```
+
+Como p < 0.05 rechazo la H0 de que no hay correlacion entre las pendientes e interceptos y uso el mod1
+
+#Pendiente aleatoria
+```{r}
+mod3 = lmer(libcaacum~dia*muestra+(1|diente1),REML = F, base)
+anova(mod1,mod3)
+```
+
+Como p < 0.05 rechazo la H0 de que las pendientes son iguales para cada diente y trabajo con el mod1. La tasa de crecimiento de mg/L de concentración de iones de Ca. no se da igual en todos los dientes con un mismo tratamiento
+
+#Interaccion dia x muestra
+```{r}
+drop1(mod1, test = "Chisq")
+```
+
+Como p < 0.05 se rechaza la H0 de no interacción, por lo que la tasa de crecimiento de mg/L de concentracion de iones de Ca es diferente para cada muestra. 
+
+#Tendencia lib Ca para cada muestra a lo largo del tiempo (Pendiente de cada muestra)
+```{r}
+contrasts(base$muestra)
+(b = summary(mod1)$coef[,1])
+mA = b[2] + b[7]
+mB = b[2] + b[8]
+mC = b[2] + b[9]
+mD = b[2] + b[10]
+mE = b[2] - (b [7] + b[8] + b[9] + b[10])
+  
+cbind(mA,mB,mC,mD,mE)
+levels(base$cem)
+```
+
+Al pasar un día, la liberación de calcio para un diente en la muestra Proroot MTA aumenta en promedio 0.34 mg/L.
+
+Al pasar un día, la liberación de calcio para un diente en la muestra Bio C Repair aumenta en promedio 0.31 mg/L.
+
+Al pasar un día, la liberación de calcio para un diente en la muestra NeoPutty aumenta en promedio 0.37 mg/L.
+
+Al pasar un día, la liberación de calcio para un diente en la muestra Biodentine aumenta en promedio 0.23 mg/L.
+
+#Diferencias
+
+. En el primer día:
+```{r}
+(b=summary(mod1)$coef[,1])
+t = 1
+A = c(1,t,1,0,0,0,t,0,0,0)
+B = c(1,t,0,1,0,0,0,t,0,0)
+C = c(1,t,0,0,1,0,0,0,t,0)
+D = c(1,t,0,0,0,1,0,0,0,t)
+E = c(1,t,-1,-1,-1,-1,-t,-t,-t,-t)
+
+a.b = A-B
+a.c = A-C
+a.d = A-D
+a.e = A-E
+b.c = B-C
+b.d = B-D
+b.e = B-E
+c.d = C-D
+c.e = C-E
+d.e = D-E
+
+cont = cbind(a.b,a.c,a.d,a.e,b.c,b.d,b.e,c.d,c.e,d.e)
+L = t(cont)%*%b
+ee = sqrt(diag(t(cont)%*%vcov(mod1)%*%cont))
+q = L/ee
+pt = pt(q,185-(1+1+4+4), lower.tail = F) #gl:1 intercep, 1 dia, 4 cemento, 4 interacc
+pt < 0.05/(2*10) #sin control
+```
+
+Se encuentran diferencias entre los cementos 
+Proroot MTA y Biodentine,
+Bio C Repair y Biodentine,
+NeoPutty y Biodentine
+
+```{r}
+qt = qt(0.95,185-(1+1+4+4))
+(LIM = cbind(L - qt*ee, L + qt*ee))[-c(1:3,5:8),]
+```
+
+La liberación de Ca promedio en el primer día de colecta para un diente en el cemento Proroot MTA es entre 0.84 y 1.65 mg/L mayor que para un diente en el cemento Biodentine, con 95% de confianza.
+
+La liberación de Ca promedio en el primer día de colecta para un diente en el cemento Bio C Repair es entre 0.96 y 1.58 mg/L mayor que para un diente en el cemento Biodentine, con 95% de confianza.
+
+La liberación de Ca promedio en el primer día de colecta para un diente en el cemento NeoPutty es entre 0.93 y 1.55 mg/L mayor que para un diente en lel cemento Biodentine, con 95% de confianza.
+
+
+. En el día 15:
+```{r}
+(b=summary(mod1)$coef[,1])
+t = 5
+A = c(1,t,1,0,0,0,t,0,0,0)
+B = c(1,t,0,1,0,0,0,t,0,0)
+C = c(1,t,0,0,1,0,0,0,t,0)
+D = c(1,t,0,0,0,1,0,0,0,t)
+E = c(1,t,-1,-1,-1,-1,-t,-t,-t,-t)
+
+a.b = A-B
+a.c = A-C
+a.d = A-D
+a.e = A-E
+b.c = B-C
+b.d = B-D
+b.e = B-E
+c.d = C-D
+c.e = C-E
+d.e = D-E
+
+cont = cbind(a.b,a.c,a.d,a.e,b.c,b.d,b.e,c.d,c.e,d.e)
+L = t(cont)%*%b
+ee = sqrt(diag(t(cont)%*%vcov(mod1)%*%cont))
+q = L/ee
+pt = pt(q,185-(1+1+4+4), lower.tail = F) #gl:1 intercep, 1 dia, 4 cemento, 4 interacc
+pt < 0.05/(2*10) #sin control
+```
+
+Se encuentran diferencias entre los cementos 
+Proroot MTA y Biodentine,
+Bio C Repair y Biodentine,
+NeoPutty y Biodentine
+
+```{r}
+qt = qt(0.95,185-(1+1+4+4))
+(LIM = cbind(L - qt*ee, L + qt*ee))[-c(1:3,5:8),]
+```
+
+La liberación de Ca promedio en el quinto día de colecta para un diente en el cemento Proroot MTA es entre 1.23 y 2.17 mg/L mayor que para un diente en el cemento Biodentine, con 95% de confianza.
+
+La liberación de Ca promedio en el quinto día de colecta para un diente en el cemento Bio C Repair es entre 1.27 y 1.98 mg/L mayor que para un diente en el cemento Biodentine, con 95% de confianza.
+
+La liberación de Ca promedio en el quinto día de colecta para un diente en el cemento NeoPutty es entre 1.44 y 2.15 mg/L mayor que para un diente en el cemento Biodentine, con 95% de confianza.
