@@ -1,6 +1,6 @@
 ---
 title: "Untitled"
-author: "Luis Alonso"
+author: "Luis Alonso Madrigal y Miriam Calvo"
 date: "2024-07-02"
 output: html_document
 ---
