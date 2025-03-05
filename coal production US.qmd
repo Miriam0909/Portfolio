@@ -1,0 +1,205 @@
+---
+title: "Análisis de producción mensual de carbón en Estados Unidos (1952-1959)"
+author: "Miriam Calvo"
+date: "`r Sys.Date()`" 
+format: 
+  revealjs:
+    theme: simple
+    slide-number: true
+    transition: fade
+    title-slide-attributes:
+      data-font-size: "5px"   
+---
+
+
+
+```{r}
+library(gridExtra)
+library(astsa)
+library(forecast)
+library(ggplot2)
+```
+
+
+```{r}
+# Datos de producción de carbón desde enero de 1952 hasta diciembre de 1959 (en miles de toneladas)
+
+coal_production <- c( 47730, 46704, 41535,41319, 36962, 32558, 31995, 32993, 44834, 29883,39611,40099, 38051, 36927,37272, 39457, 38097, 40226, 43589, 39088,39409, 37226, 34421, 34975, 32710, 31885, 32106,30029,29501,31620,34205,32153,32764,33230,35636,35550,34529,37498,37229,36021,38281,36676,44541,40850,38404, 37575, 41476,42267,43062,45036,43769,42298,44412,40498,37830,42294,38330,43554,42579,36911,42541,42430,43465,44468,43597,40774,42573,41635,39030,41572,37027,34732,36817,34295,33218,32034,31417,35719,30001,33096,35196,36550,33463,37195,34748,36461,35754,36943,35834,37912,30095,28931,31020,31746,34613,37901)
+
+# Definir la serie de tiempo
+coal_ts <- ts(coal_production, start = c(1952, 1), frequency = 12)
+
+```
+
+
+## Serie de tiempo
+
+
+```{r, fig.align='center'}
+plot(coal_ts, main = "Producción Mensual de Carbón en los EE. UU. (1952-1959)", ylab = "Producción (en miles de toneladas)", xlab = "Año") 
+
+```
+## 
+- Se emplearon funciones de autocorrelación (acf) y autocorrelación parcial (pacf) para determinar un modelo apropiado.
+
+- La variancia y la media de la serie parece ser estacionaria, ya que la serie no muestra una tendencia persistente. Se confirma mediante el análisis de autocorrelación.
+
+## Identificación. Análisis de autocorrelación
+
+```{r, fig.align='center'}
+#los valores acf para los datos no diferenciados
+ggAcf(coal_ts, lag.max = 24) +  #identico al libro
+  scale_x_continuous(breaks = 1:24) 
+```
+
+
+
+## Autocorrelación parcial 
+
+```{r}
+#los valores pacf para los datos no diferenciados
+ggPacf(coal_ts, lag.max = 25) +  #identico al libro
+  scale_x_continuous(breaks = 1:25) 
+```
+
+El acf en la figura indica que la media de los datos es estacionaria ya que las autocorrelaciones caen a cero con bastante rapidez. Se concluye temporalmente que la media es estacionaria. 
+
+## Diferenciación de la serie 
+
+```{r}
+coal_diff <- diff(coal_ts, differences = 1)
+plot(coal_diff, main = "Producción de Carbón - Primera Diferencia", ylab = "Diferencia de Producción")
+
+```
+
+
+## acf y pacf de la serie diferenciada
+
+```{r}
+#los valores acf para los datos diferenciados
+acf = ggAcf(coal_diff, lag.max = 24) +  #identico al libro
+  scale_x_continuous(breaks = 1:24) 
+```
+
+```{r}
+#los valores pacf para los datos diferenciados
+pacf = ggPacf(coal_diff, lag.max = 25) +  
+  scale_x_continuous(breaks = 1:25) 
+```
+
+```{r, fig.align='center'}
+grid.arrange(acf, pacf, ncol = 2)
+```
+
+- A partir de los gráficos de acf y pacf, se concluye que un modelo AR(2) es adecuado para representar la serie.
+
+## Estimación y diagnóstico
+
+
+### Modelo AR(2)
+```{r}
+modelo_ar2 <- arima(coal_ts, order = c(2, 0, 0))
+summary(modelo_ar2)
+```
+## Estimación
+
+
+### acf de los residuos
+```{r}
+acf(modelo_ar2$residuals)
+```
+
+## Estimación y diagnóstico
+
+### acf (24 rezagos)
+
+```{r}
+ggAcf(modelo_ar2$residuals,lag.max = 24)   +
+  scale_x_continuous(breaks = 1:24)
+```
+
+
+## Predicciones para los próximos 12 meses 
+```{r}
+predicciones = forecast(modelo_ar2,h=12) 
+predicciones
+```
+
+
+## Modelos alternativos implementados
+
+### Salidas del ARMA(2,3)
+
+```{r}
+modelo_arma23 <- Arima(coal_ts, order = c(2, 0, 3), 
+                              fixed = c(NA, NA, 0, 0, NA, NA))
+
+summary(modelo_arma23) #no se parecen en nada
+```
+
+
+
+## Salidas del AR(1):
+
+```{r}
+modelo_arima2 <- Arima(coal_ts, order = c(1,0,0))
+summary(modelo_arima2)
+```
+## ACF
+```{r}
+ggAcf(modelo_arima2$residuals,lag.max = 24) +  
+  scale_x_continuous(breaks = 0:24) 
+```
+
+## Salidas del ARMA( 1,1)
+
+```{r}
+modelo_arima3 <- Arima(coal_ts, order = c(1,0,1))
+summary(modelo_arima3)
+```
+## ACF
+```{r}
+ggAcf(modelo_arima3$residuals,lag.max = 24) +  
+  scale_x_continuous(breaks = 0:24) 
+```
+
+## Salidas del ARMA( 1,2)
+
+```{r}
+modelo_arima4 <- Arima(coal_ts, order = c(1,0,2))
+summary(modelo_arima4)
+```
+## ACF
+```{r}
+ggAcf(modelo_arima4$residuals,lag.max = 24) +  
+  scale_x_continuous(breaks = 0:24) 
+```
+
+## Estimación
+```{r}
+forecast(modelo_arima4,h=12)
+```
+
+## Modelo estimado con 84 observaciones (se excluye el último año)
+```{r}
+
+coal_ts84 <- ts(coal_production, start = c(1952, 1),end = c(1958,12), frequency = 12)
+
+modelo_arima5 <- Arima(coal_ts84, order = c(1,0,2))
+summary(modelo_arima5)
+```
+
+## Estimación
+
+```{r}
+forecast(modelo_arima5,h=12)
+```
+
+
+
+
+
+
+
+
+
