@@ -1,13 +1,13 @@
-# Proyectos
 
-## Series Temporales
-## Bases de datos relacionales: SQL
-## Análisis Multivariado 
-## Modelos Mixtos 
-## Regresión Lineal Múltiple
-## Modelos Bayesianos
-## Diseño de Experimentos
-## Medición 
-## Construcción de Indicadores
-## Clasificación de imágenes y texto
-## Demografía
+## Time Series Analysis and Forecasting
+## Relational Databases: SQL, PostgreSQL
+## Multivariate Data Analysis 
+## Mixed Models
+## Regression
+## Bayesian Statistics
+## Experimental Design
+## Psychometrics 
+## Indicators and Indexes
+## Machine Learning
+## Demography
+## Principal Component Analysis (PCA)
