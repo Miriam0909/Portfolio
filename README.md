@@ -2,7 +2,7 @@
 ## Time Series Analysis and Forecasting
 **1. Coal Production**
 The data series in this case study is monthly bituminous coal production in the United States from January 1952 through December 1959, a total of 96 observations. The data have been seasonally adjusted, but only to simplify the analysis since this is one of the early case studies. 
-[coal production US](data/dataset.csv)
+[coal production US](https://github.com/Miriam0909/Portfolio/blob/main/coal%20production%20US.qmd)
 
 ## Relational Databases: SQL, PostgreSQL
 ## Multivariate Data Analysis 
