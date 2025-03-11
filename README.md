@@ -5,7 +5,8 @@ The data series in this case study is monthly bituminous coal production in the 
 [Coal production analysis here](https://raw.githubusercontent.com/Miriam0909/Portfolio/main/coal%20production%20US.qmd)
 
 ## Relational Databases: SQL, PostgreSQL
-## Multivariate Data Analysis 
+## Multivariate Data Analysis
+
 ## Mixed Models
 ## Regression
 ## Bayesian Statistics
